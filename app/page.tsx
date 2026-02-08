@@ -1,122 +1,176 @@
-import Image from "next/image";
-import Link from "next/link";
+'use client';
 
-export default function Home() {
+import { useState } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Loader2 } from 'lucide-react'; // Optional: add lucide-react for spinner (run npm install lucide-react first)
+
+export default function Simulator() {
+  const [omega, setOmega] = useState(1.0);
+  const [zeta, setZeta] = useState(0.05);
+  const [amplitude, setAmplitude] = useState(1.0);
+  const [tEnd, setTEnd] = useState(20.0);
+  const [points, setPoints] = useState(1000);
+  const [file, setFile] = useState<File | null>(null);
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setData(null);
+
+    const formData = new FormData();
+    formData.append('omega', omega.toString());
+    formData.append('zeta', zeta.toString());
+    formData.append('amplitude', amplitude.toString());
+    formData.append('t_end', tEnd.toString());
+    formData.append('points', points.toString());
+    if (file) formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/py/simulate', {
+        method: 'POST',
+        body: formData,
+      });
+      const result = await res.json();
+      setData(result);
+    } catch (err) {
+      alert('Simulation failed – check console (F12) for details');
+    }
+    setLoading(false);
+  };
+
+  const chartData = data?.simulation?.time.map((t: number, i: number) => ({
+    time: t.toFixed(2),
+    simulation: data.simulation.position[i],
+    experimental: data.experimental?.position[i] ?? null,
+  })) ?? [];
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing FastApi API&nbsp;
-          <Link href="/api/py/helloFastApi">
-            <code className="font-mono font-bold">api/index.py</code>
-          </Link>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
+      <div className="max-w-5xl mx-auto">
+        <h1 className="text-5xl font-bold text-center text-indigo-900 mb-12">
+          Physics Simulation Dashboard
+        </h1>
+        <p className="text-center text-gray-700 mb-10 text-lg">
+          Damped Harmonic Oscillator – Compare theoretical simulation with experimental data
         </p>
-        <p className="fixed right-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing Next.js API&nbsp;
-          <Link href="/api/helloNextJs">
-            <code className="font-mono font-bold">app/api/helloNextJs</code>
-          </Link>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+
+        <div className="bg-white rounded-2xl shadow-2xl p-10">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Natural Frequency ω (rad/s)
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                value={omega}
+                onChange={e => setOmega(parseFloat(e.target.value) || 0)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Damping Ratio ζ
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={zeta}
+                onChange={e => setZeta(parseFloat(e.target.value) || 0)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">0 = no damping, 1 = critical, >1 = overdamped</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Initial Amplitude (m)
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                value={amplitude}
+                onChange={e => setAmplitude(parseFloat(e.target.value) || 0)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Time Duration (s)
+              </label>
+              <input
+                type="number"
+                step="1"
+                value={tEnd}
+                onChange={e => setTEnd(parseFloat(e.target.value) || 0)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Number of Points
+              </label>
+              <input
+                type="number"
+                step="100"
+                min="100"
+                value={points}
+                onChange={e => setPoints(parseInt(e.target.value) || 1000)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div className="md:col-span-2 lg:col-span-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Experimental Data (CSV)
+              </label>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={e => setFile(e.target.files?.[0] || null)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-indigo-600 file:text-white hover:file:bg-indigo-700"
+              />
+              <p className="text-xs text-gray-500 mt-1">Columns: time, position</p>
+            </div>
+
+            <div className="md:col-span-2 lg:col-span-3 flex justify-center">
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-10 py-4 bg-indigo-600 text-white text-lg font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-3 shadow-lg"
+              >
+                {loading && <Loader2 className="animate-spin" size={24} />}
+                {loading ? 'Running Simulation...' : 'Run Simulation'}
+              </button>
+            </div>
+          </form>
+
+          {data && (
+            <div className="mt-12">
+              <h2 className="text-3xl font-bold text-center text-indigo-900 mb-8">Results</h2>
+              <ResponsiveContainer width="100%" height={500}>
+                <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="4 4" stroke="#e0e0e0" />
+                  <XAxis dataKey="time" label={{ value: 'Time (s)', position: 'insideBottom', offset: -10 }} />
+                  <YAxis label={{ value: 'Position (m)', angle: -90, position: 'insideLeft' }} />
+                  <Tooltip formatter={(value: number) => value.toFixed(4)} />
+                  <Legend verticalAlign="top" height={40} />
+                  <Line type="monotone" dataKey="simulation" stroke="#4f46e5" name="Simulation" strokeWidth={3} dot={false} />
+                  {data.experimental && (
+                    <Line type="monotone" dataKey="experimental" stroke="#dc2626" name="Experimental Data" strokeWidth={3} dot={false} />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       </div>
-
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800 hover:dark:bg-opacity-30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore the Next.js 13 playground.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+    </div>
   );
 }
